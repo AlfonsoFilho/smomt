@@ -8,10 +8,12 @@
 - [x] implement selector
 - [ ] implement selector cache
 - [x] implement effects
-- [ ] single or multiple stores
+- [x] single or multiple stores
 - [x] combine reducers
 - [x] combine effects
 - [x] combine selectors
-- [ ] communication between stores
-- [ ] channel communication
+- [x] communication between stores
+- [x] channel communication
 - [ ] lazy-load/increment store
+- [ ] hydrate state
+- [ ] redux dev tool

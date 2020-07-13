@@ -1,6 +1,7 @@
 
 class SmartStore {
-    constructor({ name, initialState, reducers, effects, selectors, options }) {
+    constructor({ name, initialState, reducers, effects, selectors, options = {}, subscribe }) {
+        this.name = name
         this.worker = new Worker(this.createCode(initialState, reducers, selectors, effects), { name })
         this.reducers = reducers
         this.effects = effects
@@ -15,6 +16,17 @@ class SmartStore {
             // console.log('pending', this.pending)
 
             this.pending[e.data.id](e.data.projection)
+        }
+
+        this.subscribe(subscribe)
+    }
+
+    subscribe(ids = []) {
+        for(const id of ids) {
+            globalThis.addEventListener(`dispatch:${id}`, e => {
+                // console.log('lisengin', e)
+                this.dispatch(e.detail)
+            })
         }
     }
 
@@ -49,6 +61,9 @@ class SmartStore {
     }
 
     dispatch(msg) {
+        if(this.options.broadcast) {
+            globalThis.dispatchEvent(new CustomEvent(`dispatch:${this.name}`, {detail: {...msg, origin: this.name} }))
+        }
         this.worker.postMessage({ cmd: 'DISPATCH', payload: msg })
     }
 
@@ -211,6 +226,16 @@ async function effectB(action, state, deps, select) {
     }
 }
 
+async function effectC(action, state, deps, select) {
+    if (action.type === 'INC') {
+        if(action.origin) {
+            console.log('Effect C, INC', action)
+        }
+    }
+}
+
+
+
 
 const getTotal = (state) => state?.total
 const getDouble = (state) => state?.total * 2
@@ -218,8 +243,8 @@ const getSuffix = (state) => (txt) => state?.total + txt
 const getStringify = SmartStore.combineSelectors(getTotal, getDouble, (total, double) => 'Result = ' + (total + double))
 
 async function Program() {
-    const store = new SmartStore({ name: 'Test', initialState: { total: 0 }, reducers: [reducerA, reducerB], effects: [effectA, effectB], selectors: { getTotal, getDouble, getSuffix, getStringify } })
-    const store2 = new SmartStore({ name: 'Test2', initialState: { total: 0 }, reducers: [reducerA, reducerB], effects: [effectA, effectB], selectors: { getTotal, getDouble, getSuffix, getStringify } })
+    const store = new SmartStore({ name: 'Test', initialState: { total: 0 }, reducers: [reducerA, reducerB], effects: [effectA, effectB], selectors: { getTotal, getDouble, getSuffix, getStringify }, options: { broadcast: true } })
+    const store2 = new SmartStore({ name: 'Test2', initialState: { total: 0 }, reducers: [reducerA, reducerB], effects: [effectA, effectB, effectC], selectors: { getTotal, getDouble, getSuffix, getStringify },  subscribe: ['Test'] })
 
     console.log('store instance', store)
 
