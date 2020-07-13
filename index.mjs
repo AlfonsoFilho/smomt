@@ -1,3 +1,64 @@
+// function useReduxDevTools(realDispatch: React.Dispatch<any>, state: any, id: string, reducers: Function) {
+//     const devTools = useRef<null | ReduxDevTools>(null);
+//     const stateTrack = useRef(state);
+//     const reduxDevTools: ReduxDevTools = (window as any)?.__REDUX_DEVTOOLS_EXTENSION__;
+  
+//     useEffect(() => {
+//       const config = {
+//         name: id || document.title,
+//       };
+  
+//       if (devTools.current === null) {
+//         devTools.current = reduxDevTools?.connect(config);
+//       }
+  
+//       const unsubscribe = devTools?.current?.subscribe((message: any) => {
+//         if (message.type === 'DISPATCH' && message.payload) {
+//           switch (message.payload.type) {
+//             case 'JUMP_TO_STATE':
+//             case 'JUMP_TO_ACTION':
+//               realDispatch({ type: '__set_state__', payload: JSON.parse(message.state) });
+//               break;
+//             case 'COMMIT':
+//               devTools?.current?.init(stateTrack.current);
+//               break;
+//             case 'ROLLBACK':
+//             case 'RESET':
+//               devTools?.current?.init(stateTrack.current);
+//               realDispatch({ type: '__set_state__', payload: JSON.parse(message.state) });
+//               break;
+//           }
+//         }
+//       });
+  
+//       devTools?.current?.init(stateTrack.current);
+  
+//       return () => {
+//         if (typeof unsubscribe === 'function') {
+//           unsubscribe();
+//         }
+//         reduxDevTools?.disconnect();
+//       };
+//     }, []);
+  
+//     const logAction = (action: Action, printLog = false) => {
+//       if (printLog) {
+//         console.log(id + ' > ', action);
+//       }
+  
+//       if (Boolean(devTools?.current)) {
+//         stateTrack.current = reducers(stateTrack.current, action);
+//         devTools?.current?.send(action, stateTrack.current);
+//       }
+//     };
+  
+//     return {
+//       logAction,
+//     };
+//   }
+  
+
+//--------------
 
 class SmartStore {
     constructor({ name, initialState, reducers, effects, selectors, options = {}, subscribe, deps = [] }) {
@@ -26,7 +87,59 @@ class SmartStore {
         }
 
         this.subscribe(subscribe)
+
+        this.setupReduxDevTool(initialState)
+
+      
+        
     }
+
+    setupReduxDevTool(initialState) {
+
+        this.reduxDevTools = window.__REDUX_DEVTOOLS_EXTENSION__
+        this.stateTrack = initialState
+        
+
+        if(this.reduxDevTools) {
+            console.log(this.reduxDevTools)
+            this.devTool = this.reduxDevTools.connect({
+                name: this.name
+            })
+            this.devTool.init(this.stateTrack)
+        }
+
+        const unsubscribe = this.devTool.subscribe((message) => {
+            if (message.type === 'DISPATCH' && message.payload) {
+                switch (message.payload.type) {
+                  case 'JUMP_TO_STATE':
+                  case 'JUMP_TO_ACTION':
+                    this.dispatch({ type: '__set_state__', payload: JSON.parse(message.state) });
+                    break;
+                  case 'COMMIT':
+                    this.devTool.init(this.stateTrack);
+                    break;
+                  case 'ROLLBACK':
+                  case 'RESET':
+                    this.devTool.init(this.stateTrack);
+                    this.dispatch({ type: '__set_state__', payload: JSON.parse(message.state) });
+                    break;
+                }
+              }
+        })
+    }
+
+    logAction(action, printLog = false) {
+        if (printLog) {
+          console.log(id + ' > ', action);
+        }
+    
+        if (Boolean(this.devTool)) {
+          this.stateTrack = this.reducers.reduce((updatedState, fn) => {
+              return fn(action, updatedState)
+          }, this.stateTrack);
+          this.devTool.send(action, this.stateTrack);
+        }
+      };
 
     setBuiltInSelectors(selectors) {
         selectors.getState = (state) => state;
@@ -91,6 +204,9 @@ class SmartStore {
     dispatch(msg) {
         if(this.options.broadcast) {
             globalThis.dispatchEvent(new CustomEvent(`dispatch:${this.name}`, {detail: {...msg, origin: this.name} }))
+        }
+        if(this.devTool) {
+            this.logAction(msg)
         }
         this.worker.postMessage({ cmd: 'DISPATCH', payload: msg })
     }
@@ -226,7 +342,7 @@ class SmartStore {
 
 function reducerA(action, state) {
     
-    console.log('State', state, _.prop('total', state))
+    // console.log('State', state, _.prop('total', state))
     
     switch (action.type) {
         case 'INC':
