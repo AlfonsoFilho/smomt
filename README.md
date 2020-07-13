@@ -15,5 +15,5 @@
 - [x] communication between stores
 - [x] channel communication
 - [ ] lazy-load/increment store
-- [ ] hydrate state
+- [x] hydrate state
 - [ ] redux dev tool

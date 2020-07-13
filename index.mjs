@@ -1,7 +1,15 @@
 
 class SmartStore {
     constructor({ name, initialState, reducers, effects, selectors, options = {}, subscribe }) {
+
+        this.setBuiltInSelectors(selectors)
+
         this.name = name
+
+        if(options.hydrate) {
+            initialState = this.hydrate()
+        }
+
         this.worker = new Worker(this.createCode(initialState, reducers, selectors, effects), { name })
         this.reducers = reducers
         this.effects = effects
@@ -11,9 +19,6 @@ class SmartStore {
         //this.cache
 
         this.worker.onmessage = (e) => {
-            // console.log('worker response', e.data)
-
-            // console.log('pending', this.pending)
 
             this.pending[e.data.id](e.data.projection)
         }
@@ -21,10 +26,30 @@ class SmartStore {
         this.subscribe(subscribe)
     }
 
+    setBuiltInSelectors(selectors) {
+        selectors.getState = (state) => state;
+        return selectors
+    }
+
+    hydrate() {
+        return atob(JSON.parse(localStorage.getItem('store:' + this.name)))
+    }
+
+    async persist() {
+        const currentState = await this.select.getState()
+        localStorage.setItem('store:' + this.name, btoa(JSON.stringify(currentState)))
+    }
+
+    async terminate({ persist = false }) {
+        if(persist) {
+            await this.persist()
+        }
+        this.worker.terminate()
+    }
+
     subscribe(ids = []) {
         for(const id of ids) {
             globalThis.addEventListener(`dispatch:${id}`, e => {
-                // console.log('lisengin', e)
                 this.dispatch(e.detail)
             })
         }
@@ -57,6 +82,7 @@ class SmartStore {
             })
 
         }
+
         return select
     }
 
@@ -86,7 +112,7 @@ class SmartStore {
                     const opts = sel.map((name) => selectors[name](state))
                     const fn = ${fn}
                     return fn.apply(null, opts)
-                }`
+                },`
             }
         }
 
@@ -113,59 +139,70 @@ class SmartStore {
         const reducersObj = this.convertReducersToString(reducers)
         const effectsObj = this.convertReducersToString(effects)
 
-        const workerCode = `
+       
 
-        let state = ${ JSON.stringify(initialState)}
+        function workerCode() {
+            //--
+            let state = '##initialState##'
 
         
-        function reducer(action, state, deps) {
-            const reducers = ${ reducersObj}
-
-            return reducers.reduce((updatedState, fn) => fn(action, updatedState, deps), state)
-        }
-
-        function effect(action, state, deps, select) {
-            const effects = ${ effectsObj}
-            
-            const bindSelectors = Object.keys(select).reduce((acc, it) => {
-                acc[it] = select[it].bind(null, state)
-                return acc;
-            }, {})
-
-            for(const _effect of effects) {
-                _effect(action, state, deps, bindSelectors)
+            function reducer(action, state, deps) {
+                const reducers = '##reducersObj##'
+    
+                return reducers.reduce((updatedState, fn) => fn(action, updatedState, deps), state)
             }
-
-            //console.log('effestcs', effects, select)
-        }
-
-        self.onmessage = (e) => {
-            //console.log('log', e.data)
-
-            const selectors = ${ selectorsObj}
-
-            switch(e.data.cmd) {
-                case 'DISPATCH': {
-                    state = reducer(e.data.payload, state)
-                    effect(e.data.payload, state, {}, selectors)
-                    // console.log('state?', state)
-                    break;
-                }
-                case 'SELECT': {
-                    
-
-                    let projection = selectors[e.data.selector](state)
-                    if(typeof projection === 'function') {
-                        projection = projection.apply(null, e.data.args)
-                    }
-                    self.postMessage({projection, id: e.data.id})
+    
+            function effect(action, state, deps, select) {
+                const effects = '##effectsObj##'
                 
-                    break;
+                const bindSelectors = Object.keys(select).reduce((acc, it) => {
+                    acc[it] = select[it].bind(null, state)
+                    return acc;
+                }, {})
+    
+                for(const _effect of effects) {
+                    _effect(action, state, deps, bindSelectors)
+                }
+    
+                //console.log('effestcs', effects, select)
+            }
+    
+            self.onmessage = (e) => {
+                //console.log('log', e.data)
+    
+                const selectors = '##selectorsObj##'
+    
+                switch(e.data.cmd) {
+                    case 'DISPATCH': {
+                        state = reducer(e.data.payload, state)
+                        effect(e.data.payload, state, {}, selectors)
+                        // console.log('state?', state)
+                        break;
+                    }
+                    case 'SELECT': {
+                        
+                        console.log('???', selectors, e.data.selector)
+                        let projection = selectors[e.data.selector](state)
+                        if(typeof projection === 'function') {
+                            projection = projection.apply(null, e.data.args)
+                        }
+                        self.postMessage({projection, id: e.data.id})
+                    
+                        break;
+                    }
                 }
             }
-        }`
+            //---
+        }
 
-        const blob = new Blob([workerCode], { type: 'application/javascript' })
+        const workerCodeStr = workerCode.toString()
+            .replace('\'##initialState##\'', JSON.stringify(initialState))
+            .replace('\'##reducersObj##\'', reducersObj)
+            .replace('\'##effectsObj##\'', effectsObj)
+            .replace('\'##selectorsObj##\'', selectorsObj)
+
+        // const blob = new Blob([workerCode], { type: 'application/javascript' })
+        const blob = new Blob([workerCodeStr, 'workerCode()'], { type: 'application/javascript' })
         const code = URL.createObjectURL(blob)
 
         return code
@@ -180,6 +217,7 @@ class SmartStore {
 
 
 function reducerA(action, state, deps) {
+    console.log('reducer??', state)
     switch (action.type) {
         case 'INC':
             return { total: state.total + 1 }
@@ -272,6 +310,17 @@ async function Program() {
     store2.dispatch({ type: 'INC' })
     console.log('R2: total', await store2.select.getTotal())
 
+    // store.persist()
+    store.terminate({persist: true})
+
+    let newStore
+    setTimeout(async () => {
+        console.log('revial store')
+        newStore = new SmartStore({ name: 'Test', initialState: { total: 0 }, reducers: [reducerA, reducerB], effects: [effectA, effectB], selectors: { getTotal, getDouble, getSuffix, getStringify }, options: { hydrate: true } })
+        newStore.dispatch({ type: 'INC' })
+        newStore.dispatch({ type: 'INC' })
+        console.log('newstore state', await newStore.select.getState())
+    }, 10000)
 
 }
 
