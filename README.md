@@ -14,6 +14,7 @@
 - [x] combine selectors
 - [x] communication between stores
 - [x] channel communication
-- [ ] lazy-load/increment store
+- [-] lazy-load/increment store
+- [x] inject library
 - [x] hydrate state
 - [ ] redux dev tool

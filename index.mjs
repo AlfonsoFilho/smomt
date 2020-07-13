@@ -1,6 +1,7 @@
 
 class SmartStore {
-    constructor({ name, initialState, reducers, effects, selectors, options = {}, subscribe }) {
+    constructor({ name, initialState, reducers, effects, selectors, options = {}, subscribe, deps = [] }) {
+
 
         this.setBuiltInSelectors(selectors)
 
@@ -10,12 +11,13 @@ class SmartStore {
             initialState = this.hydrate()
         }
 
-        this.worker = new Worker(this.createCode(initialState, reducers, selectors, effects), { name })
+        this.worker = new Worker(this.createCode(initialState, reducers, selectors, effects, deps), { name })
         this.reducers = reducers
         this.effects = effects
         this.select = this.makeSelectors(selectors)
         this.options = options
         this.pending = {}
+        this.deps = deps
         //this.cache
 
         this.worker.onmessage = (e) => {
@@ -133,7 +135,7 @@ class SmartStore {
         return '[]'
     }
 
-    createCode(initialState, reducers, selectors, effects) {
+    createCode(initialState, reducers, selectors, effects, deps) {
 
         const selectorsObj = this.convertSelectorToString(selectors)
         const reducersObj = this.convertReducersToString(reducers)
@@ -145,7 +147,11 @@ class SmartStore {
             //--
             let state = '##initialState##'
 
-        
+            const deps = '##deps##'
+            const host = "'##host##'"
+            
+            deps.forEach(lib => importScripts(`${host}/${deps}`))
+
             function reducer(action, state, deps) {
                 const reducers = '##reducersObj##'
     
@@ -200,6 +206,8 @@ class SmartStore {
             .replace('\'##reducersObj##\'', reducersObj)
             .replace('\'##effectsObj##\'', effectsObj)
             .replace('\'##selectorsObj##\'', selectorsObj)
+            .replace('\'##deps##\'', JSON.stringify(deps))
+            .replace('\'##host##\'', location.origin)
 
         // const blob = new Blob([workerCode], { type: 'application/javascript' })
         const blob = new Blob([workerCodeStr, 'workerCode()'], { type: 'application/javascript' })
@@ -216,8 +224,10 @@ class SmartStore {
 // ----------------------------------
 
 
-function reducerA(action, state, deps) {
-    console.log('reducer??', state)
+function reducerA(action, state) {
+    
+    console.log('State', state, _.prop('total', state))
+    
     switch (action.type) {
         case 'INC':
             return { total: state.total + 1 }
@@ -231,7 +241,7 @@ function reducerA(action, state, deps) {
 }
 
 
-function reducerB(action, state, deps) {
+function reducerB(action, state) {
     // console.log('reducer B', action, state, deps)
     switch (action.type) {
         case 'INC':
@@ -273,16 +283,18 @@ async function effectC(action, state, deps, select) {
 }
 
 
+// const _ = {
+//     prop = (key, obj) => obj[key]
+// }
 
-
-const getTotal = (state) => state?.total
-const getDouble = (state) => state?.total * 2
-const getSuffix = (state) => (txt) => state?.total + txt
+const getTotal = (state) => state.total
+const getDouble = (state) => state.total * 2
+const getSuffix = (state) => (txt) => state.total + txt
 const getStringify = SmartStore.combineSelectors(getTotal, getDouble, (total, double) => 'Result = ' + (total + double))
 
 async function Program() {
-    const store = new SmartStore({ name: 'Test', initialState: { total: 0 }, reducers: [reducerA, reducerB], effects: [effectA, effectB], selectors: { getTotal, getDouble, getSuffix, getStringify }, options: { broadcast: true } })
-    const store2 = new SmartStore({ name: 'Test2', initialState: { total: 0 }, reducers: [reducerA, reducerB], effects: [effectA, effectB, effectC], selectors: { getTotal, getDouble, getSuffix, getStringify },  subscribe: ['Test'] })
+    const store = new SmartStore({ name: 'Test', initialState: { total: 0 }, reducers: [reducerA, reducerB], effects: [effectA, effectB], selectors: { getTotal, getDouble, getSuffix, getStringify }, options: { broadcast: true }, deps: ['lodash.js'] })
+    const store2 = new SmartStore({ name: 'Test2', initialState: { total: 0 }, reducers: [reducerA, reducerB], effects: [effectA, effectB, effectC], selectors: { getTotal, getDouble, getSuffix, getStringify },  subscribe: ['Test'], deps: ['lodash.js'] })
 
     console.log('store instance', store)
 
@@ -316,7 +328,7 @@ async function Program() {
     let newStore
     setTimeout(async () => {
         console.log('revial store')
-        newStore = new SmartStore({ name: 'Test', initialState: { total: 0 }, reducers: [reducerA, reducerB], effects: [effectA, effectB], selectors: { getTotal, getDouble, getSuffix, getStringify }, options: { hydrate: true } })
+        newStore = new SmartStore({ name: 'Test', initialState: { total: 0 }, reducers: [reducerA, reducerB], effects: [effectA, effectB], selectors: { getTotal, getDouble, getSuffix, getStringify }, options: { hydrate: true }, deps: ['lodash.js']  })
         newStore.dispatch({ type: 'INC' })
         newStore.dispatch({ type: 'INC' })
         console.log('newstore state', await newStore.select.getState())
