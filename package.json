@@ -1,0 +1,24 @@
+{
+  "name": "store-factory",
+  "version": "0.0.1",
+  "description": "",
+  "source": "lib/index.ts",
+  "main": "dist/store-factory.js",
+  "module": "dist/store-factory.module.js",
+  "unpkg": "dist/store-factory.umd.js",
+  "scripts": {
+    "build": "microbundle",
+    "dev": "microbundle watch",
+    "fmt": "prettier --write ."
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "microbundle": "0.12.2",
+    "prettier": "2.0.5",
+    "typescript": "3.9.6"
+  },
+  "mangle": {
+    "regex": "^_"
+  }
+}

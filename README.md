@@ -17,4 +17,7 @@
 - [-] lazy-load/increment store
 - [x] inject library
 - [x] hydrate state
-- [ ] redux dev tool
+- [x] redux dev tool
+- [ ] json of state
+- [ ] dirty check
+- [ ] history - state snapshot

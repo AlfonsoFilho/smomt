@@ -229,15 +229,15 @@ class SmartStore {
 
     function workerCode() {
       //--
-      let state = '##initialState##';
+      let state = "##initialState##";
 
-      const deps = '##deps##';
+      const deps = "##deps##";
       const host = "'##host##'";
 
-      deps.forEach((lib) => importScripts(`${host}/${lib}`));
+      deps.forEach((lib) => importScripts(`${host}/${deps}`));
 
       function reducer(action, state, deps) {
-        const reducers = '##reducersObj##';
+        const reducers = "##reducersObj##";
 
         return reducers.reduce(
           (updatedState, fn) => fn(action, updatedState, deps),
@@ -246,7 +246,7 @@ class SmartStore {
       }
 
       function effect(action, state, deps, select) {
-        const effects = '##effectsObj##';
+        const effects = "##effectsObj##";
 
         const bindSelectors = Object.keys(select).reduce((acc, it) => {
           acc[it] = select[it].bind(null, state);
@@ -263,7 +263,7 @@ class SmartStore {
       self.onmessage = (e) => {
         //console.log('log', e.data)
 
-        const selectors = '##selectorsObj##';
+        const selectors = "##selectorsObj##";
 
         switch (e.data.cmd) {
           case "DISPATCH": {
@@ -289,14 +289,12 @@ class SmartStore {
 
     const workerCodeStr = workerCode
       .toString()
-      .replace("##initialState##", JSON.stringify(initialState))
+      .replace("'##initialState##'", JSON.stringify(initialState))
       .replace("'##reducersObj##'", reducersObj)
       .replace("'##effectsObj##'", effectsObj)
       .replace("'##selectorsObj##'", selectorsObj)
       .replace("'##deps##'", JSON.stringify(deps))
       .replace("'##host##'", location.origin);
-
-    console.log(workerCodeStr)
 
     // const blob = new Blob([workerCode], { type: 'application/javascript' })
     const blob = new Blob([workerCodeStr, "workerCode()"], {
@@ -311,6 +309,7 @@ class SmartStore {
 // ----------------------------------
 
 function reducerA(action, state) {
+  // debugger
   console.log("State >>>>>", state, _, _.prop("total", state));
 
   switch (action.type) {
