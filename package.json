@@ -1,11 +1,11 @@
 {
-  "name": "store-factory",
+  "name": "smomt",
   "version": "0.0.1",
   "description": "",
   "source": "lib/index.ts",
-  "main": "dist/store-factory.js",
-  "module": "dist/store-factory.module.js",
-  "unpkg": "dist/store-factory.umd.js",
+  "main": "dist/smomt.js",
+  "module": "dist/smomt.module.js",
+  "unpkg": "dist/smomt.umd.js",
   "scripts": {
     "build": "microbundle",
     "dev": "microbundle watch",
